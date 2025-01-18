@@ -4,7 +4,12 @@ document.addEventListener('DOMContentLoaded', function() {
     const messageInput = document.getElementById('messageInput');
     const statusDiv = document.getElementById('status');
 
-    scrapeButton.addEventListener('click', () => {
+    // Connect to the background script
+    const port = chrome.runtime.connect({ name: "popup" });
+
+    scrapeButton.addEventListener('click', function() {
+        const message = messageInput.value;
+        
         chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
             const currentTab = tabs[0];
             
@@ -19,9 +24,10 @@ document.addEventListener('DOMContentLoaded', function() {
             statusDiv.textContent = 'Sending message and collecting data...';
             statusDiv.style.display = 'block';
 
-            chrome.runtime.sendMessage({
+            // Send message to background script
+            chrome.runtime.sendMessage({ 
                 action: 'scrapeData',
-                message: messageInput.value
+                message: message 
             }, (response) => {
                 // Reset button state
                 scrapeButton.textContent = 'Send Message & Scrape Data';
