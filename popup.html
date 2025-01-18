@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Subito.it Scraper</title>
+  <style>
+    body {
+      width: 400px;
+      padding: 20px;
+      font-family: Arial, sans-serif;
+    }
+    .container {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+    button {
+      background-color: #4CAF50;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    button:disabled {
+      background-color: #cccccc;
+      cursor: not-allowed;
+    }
+    .result {
+      margin-top: 15px;
+      border: 1px solid #ddd;
+      padding: 15px;
+      border-radius: 4px;
+      display: none;
+    }
+    .data-row {
+      margin: 5px 0;
+    }
+    .label {
+      font-weight: bold;
+      margin-right: 10px;
+    }
+    .message-input {
+      width: 100%;
+      padding: 8px;
+      margin-bottom: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-family: inherit;
+      resize: vertical;
+      min-height: 60px;
+    }
+    .status {
+      color: #666;
+      font-style: italic;
+      margin-top: 5px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <textarea id="messageInput" class="message-input" placeholder="Enter your message here...">Salve, sono interessato al vostro annuncio. È ancora disponibile?</textarea>
+    <button id="scrapeButton">Send Message & Scrape Data</button>
+    <div id="status" class="status"></div>
+    <div id="result" class="result">
+      <div class="data-row">
+        <span class="label">Message Status:</span>
+        <span id="messageStatus"></span>
+      </div>
+      <div class="data-row">
+        <span class="label">URL:</span>
+        <span id="url"></span>
+      </div>
+      <div class="data-row">
+        <span class="label">Address:</span>
+        <span id="address"></span>
+      </div>
+      <div class="data-row">
+        <span class="label">Price:</span>
+        <span id="price"></span>
+      </div>
+      <div class="data-row">
+        <span class="label">Rooms:</span>
+        <span id="rooms"></span>
+      </div>
+      <div class="data-row">
+        <span class="label">Surface Area:</span>
+        <span id="surface"></span>
+      </div>
+      <div class="data-row">
+        <span class="label">Phone:</span>
+        <span id="phone"></span>
+      </div>
+    </div>
+  </div>
+  <script src="js/popup.js"></script>
+</body>
+</html>
