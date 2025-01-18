@@ -2,15 +2,12 @@
   "manifest_version": 3,
   "name": "Subito.it Scraper",
   "version": "1.0",
-  "description": "Scrape data from Subito.it listings",
+  "description": "Scrapes real estate data from Subito.it",
   "permissions": [
     "activeTab",
     "scripting",
-    "tabs",
-    "downloads"
-  ],
-  "host_permissions": [
-    "https://www.subito.it/*"
+    "downloads",
+    "tabs"
   ],
   "action": {
     "default_popup": "popup.html"
@@ -18,16 +15,7 @@
   "background": {
     "service_worker": "js/background.js"
   },
-  "content_scripts": [
-    {
-      "matches": ["https://www.subito.it/*"],
-      "js": ["js/xlsx.full.min.js"]
-    }
-  ],
-  "web_accessible_resources": [
-    {
-      "resources": ["js/xlsx.full.min.js"],
-      "matches": ["https://www.subito.it/*"]
-    }
+  "host_permissions": [
+    "*://*.subito.it/*"
   ]
 }

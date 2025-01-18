@@ -291,6 +291,17 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         if (result && result.type === 'search_results') {
           console.log('Processing batch of links:', result.links);
           const scrapedData = [];
+          const totalListings = result.links.length;
+          let processedListings = 0;
+
+          // Send initial progress
+          if (currentPort) {
+            currentPort.postMessage({
+              type: 'progress',
+              current: processedListings,
+              total: totalListings
+            });
+          }
           
           // Process links in batches of 3
           for (let i = 0; i < result.links.length && isScrapingActive; i += 3) {
@@ -548,9 +559,28 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                   // Close the tab
                   await chrome.tabs.remove(newTab.id);
                   
+                  // Increment processed count and update progress
+                  processedListings++;
+                  if (currentPort) {
+                    currentPort.postMessage({
+                      type: 'progress',
+                      current: processedListings,
+                      total: totalListings
+                    });
+                  }
+                  
                   return scrapeResult && scrapeResult[0].result;
                 } catch (error) {
                   console.error('Error processing listing:', url, error);
+                  // Still increment processed count even on error
+                  processedListings++;
+                  if (currentPort) {
+                    currentPort.postMessage({
+                      type: 'progress',
+                      current: processedListings,
+                      total: totalListings
+                    });
+                  }
                   return {
                     url,
                     error: error.message,
@@ -565,7 +595,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
               // Add successful results to scrapedData
               scrapedData.push(...batchResults.filter(result => result !== null));
 
-              // Break if scraping was stopped
               if (!isScrapingActive) {
                 console.log('Scraping stopped by user');
                 break;
@@ -575,33 +604,101 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
               await new Promise(resolve => setTimeout(resolve, 1000));
             } catch (error) {
               console.error('Error processing batch:', error);
-              if (!isScrapingActive) {
-                break;
-              }
             }
           }
           
           // Only save data if we have any and scraping wasn't stopped
           if (scrapedData.length > 0) {
-            // Save the scraped data to file
-            const textData = scrapedData
-              .map(d => `${d.url}\t${d.address}\t${d.price}\t${d.rooms}\t${d.surface}\t${d.phone}\t${d.messageStatus}`)
-              .join('\n');
-            
-            // Create and trigger download
-            const blob = new Blob([textData], { type: 'text/plain' });
-            const url = URL.createObjectURL(blob);
-            await chrome.downloads.download({
-              url: url,
-              filename: 'scraped_data.txt',
-              saveAs: false
-            });
+            try {
+              // Create header row
+              const headers = ['URL', 'Address', 'Price', 'Rooms', 'Surface', 'Phone', 'Message Status'].join('\t');
+              
+              // Format data rows
+              const dataRows = scrapedData.map(d => [
+                d.url || '',
+                d.address || '',
+                d.price || '',
+                d.rooms || '',
+                d.surface || '',
+                d.phone || '',
+                d.messageStatus || ''
+              ].join('\t'));
+              
+              // Combine headers and data
+              const textData = [headers, ...dataRows].join('\n');
+              
+              // Convert to base64
+              const base64Data = btoa(unescape(encodeURIComponent(textData)));
+              const dataUrl = `data:text/plain;base64,${base64Data}`;
+              
+              // Download the file
+              const filename = `subito_listings_${new Date().toISOString().slice(0,10)}.txt`;
+              console.log('Initiating download...');
+              
+              chrome.downloads.download({
+                url: dataUrl,
+                filename: filename,
+                saveAs: true,
+                conflictAction: 'uniquify'
+              }, (downloadId) => {
+                console.log('Download initiated with ID:', downloadId);
+                if (chrome.runtime.lastError) {
+                  console.error('Download error:', chrome.runtime.lastError);
+                }
+                
+                // Notify popup of completion regardless of download status
+                if (currentPort) {
+                  currentPort.postMessage({
+                    type: 'complete',
+                    total: processedListings,
+                    downloadStarted: downloadId ? true : false
+                  });
+                }
+              });
+              
+              console.log('Download request sent');
+              
+            } catch (error) {
+              console.error('Error saving data:', error);
+              if (currentPort) {
+                currentPort.postMessage({
+                  type: 'complete',
+                  total: processedListings,
+                  error: error.message
+                });
+              }
+            }
+          } else {
+            if (currentPort) {
+              currentPort.postMessage({
+                type: 'complete',
+                total: processedListings,
+                noData: true
+              });
+            }
           }
           
-          sendResponse(scrapedData);
+          // Send response and return true to indicate we'll send response asynchronously
+          sendResponse({
+            completed: true,
+            total: processedListings
+          });
+          return true;
         } else {
           // Single listing result
-          sendResponse(result);
+          console.log('Single listing result:', result);
+          if (result.error) {
+            sendResponse({
+              error: result.error,
+              completed: false
+            });
+          } else {
+            sendResponse({
+              ...result,
+              completed: false
+            });
+          }
+          return true;
         }
       } catch (error) {
         console.error('Error in main process:', error);
