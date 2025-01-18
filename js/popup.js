@@ -16,7 +16,9 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('Received message:', msg);
         if (msg.type === 'progress') {
             progressDiv.style.display = 'block';
-            progressDiv.textContent = `Processing: ${msg.current} of ${msg.total} listings (${Math.round(msg.current/msg.total*100)}%)`;
+            progressDiv.textContent = `Page ${msg.page}: Processing ${msg.current} of ${msg.total} listings (${Math.round(msg.current/msg.total*100)}%)`;
+        } else if (msg.type === 'new_page') {
+            statusDiv.textContent = `Moving to page ${msg.page}...`;
         } else if (msg.type === 'complete') {
             progressDiv.style.display = 'none';
             if (msg.error) {
@@ -25,9 +27,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 statusDiv.textContent = 'No listings were found to process.';
             } else {
                 if (msg.downloadStarted) {
-                    statusDiv.textContent = `Scraping completed! Processed ${msg.total} listings. Download should start automatically.`;
+                    statusDiv.textContent = `Scraping completed! Processed ${msg.total} listings across ${msg.pages} pages. Download should start automatically.`;
                 } else {
-                    statusDiv.textContent = `Scraping completed! Processed ${msg.total} listings, but there was an issue starting the download.`;
+                    statusDiv.textContent = `Scraping completed! Processed ${msg.total} listings across ${msg.pages} pages, but there was an issue starting the download.`;
                 }
             }
             scrapeButton.disabled = false;

@@ -1,13 +1,14 @@
 {
   "manifest_version": 3,
-  "name": "Subito.it Scraper",
+  "name": "Subito Scraper",
   "version": "1.0",
   "description": "Scrapes real estate data from Subito.it",
   "permissions": [
     "activeTab",
     "scripting",
     "downloads",
-    "tabs"
+    "tabs",
+    "storage"
   ],
   "action": {
     "default_popup": "popup.html"

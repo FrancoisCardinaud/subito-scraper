@@ -38,11 +38,96 @@ function scrapeData() {
     return data;
 }
 
+async function getNextPageButton() {
+  // The main selector for the next button
+  const nextButton = document.querySelector('#layout > main > div:nth-child(2) > div.ListingContainer_layout__paU6c > div > div.ListingContainer_container__Eh3S3 > div.ListingContainer_col__BgYy2.ListingContainer_items__na8UR.col.items > nav > button:nth-child(6)');
+  
+  if (nextButton && !nextButton.disabled && nextButton.style.display !== 'none') {
+    return nextButton;
+  }
+  return null;
+}
+
+async function collectSearchResults() {
+  try {
+    // Wait for listings to load
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Collect all listing links
+    const listingLinks = Array.from(document.querySelectorAll('a[href*="/annuncio/"]'))
+      .map(a => a.href)
+      .filter(url => /\d+\.htm$/.test(url));
+
+    // Get unique links only
+    const uniqueLinks = [...new Set(listingLinks)];
+    
+    // Check if there's a next page
+    const nextButton = await getNextPageButton();
+    const hasNextPage = nextButton !== null;
+
+    console.log('Found next button:', hasNextPage ? 'yes' : 'no');
+    if (hasNextPage) {
+      console.log('Next button text:', nextButton.textContent);
+      console.log('Next button disabled:', nextButton.disabled);
+      console.log('Next button display:', nextButton.style.display);
+    }
+
+    return {
+      type: 'search_results',
+      links: uniqueLinks,
+      hasNextPage
+    };
+  } catch (error) {
+    console.error('Error collecting search results:', error);
+    return {
+      type: 'error',
+      error: error.message
+    };
+  }
+}
+
+async function scrapeSingleListing() {
+  try {
+    // Wait for listing to load
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Scrape listing data
+    const data = scrapeData();
+    
+    return {
+      type: 'listing',
+      data
+    };
+  } catch (error) {
+    console.error('Error scraping single listing:', error);
+    return {
+      type: 'error',
+      error: error.message
+    };
+  }
+}
+
+// Export the main function that will be called by the background script
+window.scrapeData = async function() {
+  const url = window.location.href;
+  
+  // Check if this is a search results page or a single listing
+  if (url.includes('/annunci/')) {
+    return await collectSearchResults();
+  } else if (url.includes('/annuncio/')) {
+    return await scrapeSingleListing();
+  } else {
+    return {
+      type: 'error',
+      error: 'Not a valid Subito.it page'
+    };
+  }
+};
+
 // Listen for messages from the popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'scrapeData') {
-        const data = scrapeData();
-        sendResponse(data);
+        window.scrapeData().then(data => sendResponse(data));
     }
     return true;
 });
