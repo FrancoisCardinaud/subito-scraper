@@ -8,10 +8,38 @@ function scrapeData() {
     };
 
     try {
-        // Get price
-        const priceElement = document.querySelector('[class*="price"]');
-        if (priceElement) {
-            data.price = priceElement.textContent.trim();
+        // Get price - using multiple strategies to be resilient to changes
+        // Try different selectors in order of specificity
+        const priceSelectors = [
+            '[class*="price"]',
+            'p[class*="price"]',
+            '[data-testid="price"]',
+            'p.index-module_price__N7M2z',
+            'div[class*="ad-info"] p',
+            'div.general-info_ad-info__8rDpS p',
+            'section div.general-info_ad-info__8rDpS p'
+        ];
+        
+        let priceElement = null;
+        for (const selector of priceSelectors) {
+            priceElement = document.querySelector(selector);
+            if (priceElement) {
+                data.price = priceElement.textContent.trim();
+                break;
+            }
+        }
+        
+        // Try a last resort approach if no selector works
+        if (!data.price) {
+            // Look for any text containing € symbol
+            const eurElements = Array.from(document.querySelectorAll('p, span, div'))
+                .filter(el => el.textContent.includes('€'));
+            if (eurElements.length > 0) {
+                // Get the smallest element that contains the price
+                const smallestElement = eurElements.sort((a, b) => 
+                    a.textContent.length - b.textContent.length)[0];
+                data.price = smallestElement.textContent.trim();
+            }
         }
 
         // Get address - this will need to be adjusted based on the actual HTML structure

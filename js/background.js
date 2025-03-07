@@ -211,33 +211,130 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             }
 
             async function getPhoneNumber() {
-              // Find and click the phone button
-              const phoneButton = document.querySelector('#sticky-cta-container > div > button.button-text.index-module_sbt-button__hQMUx.index-module_outline__reo8F.index-module_large__Zhzux.index-module_icon-only__gkRU8.index-module_slim__yHxIG.PhoneButton_phoneButton__YYFuW');
+              // Find phone button using multiple selectors to be resilient to changes
+              const phoneButtonSelectors = [
+                // Original selector
+                '#sticky-cta-container > div > button.button-text.index-module_sbt-button__hQMUx.index-module_outline__reo8F.index-module_large__Zhzux.index-module_icon-only__gkRU8.index-module_slim__yHxIG.PhoneButton_phoneButton__YYFuW',
+                // More general selectors
+                'button[class*="PhoneButton"]',
+                'button[class*="phoneButton"]', 
+                'button[aria-label*="telefono"]',
+                'button[aria-label*="phone"]',
+                // Look for a button with a phone icon
+                'button svg[viewBox="0 0 24 24"]',
+                // Try with data attributes
+                '[data-testid="phone-button"]',
+                // Look by position
+                '#sticky-cta-container button:nth-child(2)',
+                // Generic approach - a button with a phone icon
+                'button:has(svg)'  
+              ];
+              
+              let phoneButton = null;
+              for (const selector of phoneButtonSelectors) {
+                try {
+                  phoneButton = document.querySelector(selector);
+                  if (phoneButton) {
+                    console.log('Found phone button with selector:', selector);
+                    break;
+                  }
+                } catch (e) {
+                  // Some selectors might throw errors, just continue
+                  console.log('Selector error:', e);
+                }
+              }
+              
+              // If we still can't find the button, try to find any button that might be the phone button
               if (!phoneButton) {
+                console.log('Using fallback method to find phone button');
+                const allButtons = Array.from(document.querySelectorAll('button'));
+                phoneButton = allButtons.find(btn => {
+                  const btnText = btn.textContent.toLowerCase();
+                  const hasPhoneKeyword = btnText.includes('phone') || btnText.includes('telefono') || btnText.includes('chiama');
+                  const hasPhoneSvg = btn.querySelector('svg');
+                  return hasPhoneKeyword || hasPhoneSvg;
+                });
+              }
+              
+              if (!phoneButton) {
+                console.log('No phone button found');
                 return null;
               }
 
+              // Click the phone button
+              console.log('Clicking phone button');
               phoneButton.click();
 
               // Wait for the popup to appear and get the phone number
               return new Promise((resolve) => {
                 // Try to find the phone number element multiple times
                 let attempts = 0;
-                const maxAttempts = 10;
+                const maxAttempts = 15; // Increased number of attempts
                 
                 const checkForPhoneNumber = () => {
-                  const phoneElement = document.querySelector('#radix-\\:r6\\: > div > address');
+                  // Try multiple selectors for the phone number element
+                  const phoneSelectors = [
+                    // Original selector
+                    '#radix-\\:r6\\: > div > address',
+                    // More general selectors
+                    '[role="dialog"] address', 
+                    '[role="dialog"] [class*="phone"]',
+                    '[class*="modal"] address',
+                    '[class*="dialog"] address',
+                    // Look for typical phone number patterns in the modal
+                    '[role="dialog"] div:has(a[href^="tel:"])',
+                    // Any element with a tel link
+                    'a[href^="tel:"]',
+                    // Last resort - dialog with phone number format
+                    '[role="dialog"] div'
+                  ];
+                  
+                  let phoneElement = null;
+                  for (const selector of phoneSelectors) {
+                    try {
+                      phoneElement = document.querySelector(selector);
+                      if (phoneElement) {
+                        console.log('Found phone element with selector:', selector);
+                        break;
+                      }
+                    } catch (e) {
+                      // Some selectors might throw errors, just continue
+                      console.log('Phone selector error:', e);
+                    }
+                  }
+                  
+                  // If we found the element, extract and return the phone number
                   if (phoneElement) {
-                    resolve(phoneElement.textContent.trim());
+                    // For tel links, extract from the href
+                    if (phoneElement.tagName === 'A' && phoneElement.href && phoneElement.href.startsWith('tel:')) {
+                      resolve(phoneElement.href.replace('tel:', '').trim());
+                      return;
+                    }
+                    
+                    // Otherwise extract from text content
+                    const phoneText = phoneElement.textContent.trim();
+                    
+                    // If it's a longer text, try to extract just the phone number part
+                    const phonePattern = /(\+\d{1,4}[\s-]?)?\(?\d{2,4}\)?[\s-]?\d{2,4}[\s-]?\d{2,4}[\s-]?\d{2,4}/;
+                    const match = phoneText.match(phonePattern);
+                    
+                    if (match) {
+                      resolve(match[0].trim());
+                    } else {
+                      resolve(phoneText); // Just use the text as is
+                    }
                   } else if (attempts < maxAttempts) {
                     attempts++;
-                    setTimeout(checkForPhoneNumber, 200); // Check every 200ms
+                    // Increasing wait time for later attempts
+                    const delay = 200 + (attempts * 100); // Start at 200ms, then increase by 100ms each attempt
+                    setTimeout(checkForPhoneNumber, delay);
                   } else {
+                    console.log('Could not find phone number after', maxAttempts, 'attempts');
                     resolve(null); // Give up after max attempts
                   }
                 };
 
-                setTimeout(checkForPhoneNumber, 200); // Initial check after 200ms
+                setTimeout(checkForPhoneNumber, 500); // Initial check after 500ms - increased from 200ms
               });
             }
 
@@ -264,11 +361,49 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 const descriptionElement = document.querySelector('#layout > main > div.SkeletonWithAdv_skeleton__yPdNQ > div > div.container_outer-ad-container__carpF > div.container_inner-ad-container__jkoED.grid_detail-container__uSre9 > section.grid_detail-component__Q9ihk.grid_description__KrWqU > p.index-module_sbt-text-atom__ifYVU.index-module_token-body__erqqS.size-normal.index-module_weight-book__kP2zY.AdDescription_description__154FP.index-module_preserve-new-lines__ZOcGy');
                 const description = descriptionElement ? descriptionElement.textContent.trim() : '';
 
-                // Get price
+                // Get price - using multiple strategies to be resilient to changes
                 console.log('Getting price...');
-                const priceElement = document.querySelector('#layout > main > div.SkeletonWithAdv_skeleton__yPdNQ > div > div.container_outer-ad-container__carpF > div.container_inner-ad-container__jkoED.grid_detail-container__uSre9 > div.grid_detail-component__Q9ihk.grid_right-container__FUFmP > section > div.general-info_ad-info__8rDpS > p');
-                if (priceElement) {
-                  data.price = priceElement.textContent.trim();
+                const priceSelectors = [
+                    // Original selector
+                    '#layout > main > div.SkeletonWithAdv_skeleton__yPdNQ > div > div.container_outer-ad-container__carpF > div.container_inner-ad-container__jkoED.grid_detail-container__uSre9 > div.grid_detail-component__Q9ihk.grid_right-container__FUFmP > section > div.general-info_ad-info__8rDpS > p',
+                    // More general selectors
+                    '[class*="price"]',
+                    'p[class*="price"]',
+                    '[data-testid="price"]',
+                    'p.index-module_price__N7M2z',
+                    'div[class*="ad-info"] p',
+                    'section div.general-info_ad-info__8rDpS p',
+                    'div.general-info_ad-info__8rDpS p'
+                ];
+                
+                let priceElement = null;
+                for (const selector of priceSelectors) {
+                    try {
+                        priceElement = document.querySelector(selector);
+                        if (priceElement) {
+                            console.log('Found price with selector:', selector);
+                            data.price = priceElement.textContent.trim();
+                            break;
+                        }
+                    } catch (e) {
+                        // Some selectors might throw errors, just continue
+                        console.log('Price selector error:', e);
+                    }
+                }
+                
+                // Try a last resort approach if no selector works
+                if (!data.price) {
+                    console.log('Using fallback method to find price');
+                    // Look for any text containing € symbol
+                    const eurElements = Array.from(document.querySelectorAll('p, span, div'))
+                        .filter(el => el.textContent.includes('€'));
+                    if (eurElements.length > 0) {
+                        // Get the smallest element that contains the price
+                        const smallestElement = eurElements.sort((a, b) => 
+                            a.textContent.length - b.textContent.length)[0];
+                        data.price = smallestElement.textContent.trim();
+                        console.log('Found price via € symbol:', data.price);
+                    }
                 }
 
                 // Get city
